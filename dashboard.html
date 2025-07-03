@@ -1,59 +1,80 @@
-<script src="firebase-config.js"></script>
-<script>
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-  const db = firebase.firestore();
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Employee Dashboard</title>
 
-  const taskDisplay = document.getElementById("taskDisplay");
-  const today = new Date().toISOString().split("T")[0];
+  <!-- ✅ Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <h2>Welcome, Employee</h2>
 
-  auth.onAuthStateChanged(user => {
-    if (user) {
-      const uid = user.uid;
-      console.log("Logged in UID:", uid);
-      console.log("Today:", today);
+  <h3>📌 Today's Task:</h3>
+  <div id="taskDisplay">Loading...</div>
 
-      // 🔍 Fetch Task from Firestore
-      db.collection("tasks").doc(uid).collection(today).doc("task").get()
-        .then(doc => {
-          if (doc.exists) {
-            console.log("📌 Task found:", doc.data());
-            taskDisplay.innerText = doc.data().task;
-          } else {
-            console.warn("❌ No task found for today.");
-            taskDisplay.innerText = "❌ No task assigned today.";
-          }
-        })
-        .catch(err => {
-          console.error("⚠️ Error getting task:", err);
-          taskDisplay.innerText = "⚠️ Error loading task.";
-        });
+  <h3>📤 Upload Work Summary:</h3>
+  <textarea id="summary" rows="5" cols="50" placeholder="Write what you completed today..."></textarea><br />
+  <button onclick="submitWork()">Submit</button>
 
-    } else {
-      window.location.href = "login.html";
-    }
-  });
+  <!-- ✅ Your Firebase config -->
+  <script src="firebase-config.js"></script>
 
-  function submitWork() {
-    const summary = document.getElementById("summary").value.trim();
-    if (!summary) {
-      alert("Please enter your summary.");
-      return;
-    }
+  <script>
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
 
-    const user = auth.currentUser;
-    if (!user) return;
+    const taskDisplay = document.getElementById("taskDisplay");
+    const today = new Date().toISOString().split("T")[0];
 
-    const uid = user.uid;
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        const uid = user.uid;
+        console.log("Logged in UID:", uid);
+        console.log("Today:", today);
 
-    db.collection("tasks").doc(uid).collection(today).doc("summary").set({
-      work: summary
-    }).then(() => {
-      alert("✅ Work submitted!");
-      document.getElementById("summary").value = "";
-    }).catch(err => {
-      console.error("❌ Failed to save summary:", err);
-      alert("❌ Error submitting summary.");
+        db.collection("tasks").doc(uid).collection(today).doc("task").get()
+          .then(doc => {
+            if (doc.exists) {
+              taskDisplay.innerText = doc.data().task;
+            } else {
+              taskDisplay.innerText = "❌ No task assigned today.";
+            }
+          })
+          .catch(err => {
+            console.error("⚠️ Error getting task:", err);
+            taskDisplay.innerText = "⚠️ Error loading task.";
+          });
+
+      } else {
+        window.location.href = "login.html";
+      }
     });
-  }
-</script>
+
+    function submitWork() {
+      const summary = document.getElementById("summary").value.trim();
+      if (!summary) {
+        alert("Please enter your summary.");
+        return;
+      }
+
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const uid = user.uid;
+
+      db.collection("tasks").doc(uid).collection(today).doc("summary").set({
+        work: summary
+      }).then(() => {
+        alert("✅ Work submitted!");
+        document.getElementById("summary").value = "";
+      }).catch(err => {
+        console.error("❌ Failed to save summary:", err);
+        alert("❌ Error submitting summary.");
+      });
+    }
+  </script>
+</body>
+</html>
