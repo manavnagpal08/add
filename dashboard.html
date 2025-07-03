@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head><title>Employee Dashboard</title></head>
+<body>
+  <h2>Today's Task</h2>
+  <div id="task">Loading task...</div>
+
+  <h3>Submit What You Did</h3>
+  <textarea id="workDesc" rows="4" cols="50" placeholder="Type here..."></textarea><br>
+  <button onclick="submitWork()">Submit</button>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { firebaseConfig } from "./firebase-config.js";
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const today = new Date().toISOString().split("T")[0];
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        window.location.href = "login.html";
+        return;
+      }
+
+      const taskRef = doc(db, "tasks", user.uid, today);
+      const taskSnap = await getDoc(taskRef);
+
+      document.getElementById("task").innerText = taskSnap.exists()
+        ? taskSnap.data().task
+        : "No task assigned.";
+    });
+
+    window.submitWork = async function () {
+      const user = auth.currentUser;
+      const desc = document.getElementById("workDesc").value.trim();
+
+      if (!desc) return alert("Please write what you did.");
+
+      const uploadRef = doc(db, "uploads", user.uid, today);
+      await setDoc(uploadRef, {
+        description: desc,
+        timestamp: serverTimestamp()
+      });
+
+      alert("Your work has been submitted!");
+      document.getElementById("workDesc").value = "";
+    };
+  </script>
+</body>
+</html>

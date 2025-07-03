@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin – Assign Task</title>
+</head>
+<body>
+  <h2>Assign Task to Employee</h2>
+
+  <label>Email of Employee:</label><br />
+  <input type="email" id="empEmail" placeholder="employee@example.com" /><br /><br />
+
+  <label>Date:</label><br />
+  <input type="date" id="taskDate" /><br /><br />
+
+  <label>Task Description:</label><br />
+  <textarea id="taskDesc" rows="4" cols="50" placeholder="Enter task..."></textarea><br /><br />
+
+  <button onclick="assignTask()">Assign Task</button>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, getUserByEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { firebaseConfig } from "./firebase-config.js";
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    async function getUIDByEmail(email) {
+      // Firebase Admin SDK is needed on server to get UID by email
+      alert("⚠️ You cannot get UID by email on client-side. Instead, paste the UID manually for now.");
+    }
+
+    window.assignTask = async function () {
+      const email = document.getElementById("empEmail").value.trim();
+      const task = document.getElementById("taskDesc").value.trim();
+      const date = document.getElementById("taskDate").value || new Date().toISOString().split("T")[0];
+
+      if (!email || !task) {
+        alert("Please fill all fields.");
+        return;
+      }
+
+      const uid = prompt("Paste the UID of the employee for email: " + email);
+
+      if (!uid) {
+        alert("Task not assigned. UID is required.");
+        return;
+      }
+
+      await setDoc(doc(db, "tasks", uid, date), {
+        task
+      });
+
+      alert("✅ Task assigned successfully.");
+      document.getElementById("taskDesc").value = "";
+    };
+
+    // Set today's date as default
+    document.getElementById("taskDate").value = new Date().toISOString().split("T")[0];
+  </script>
+</body>
+</html>
