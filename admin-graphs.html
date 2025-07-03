@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Work Submission Graph | Shree Ram Packers</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    body {
+      font-family: Poppins, sans-serif;
+      background: #f1f4f9;
+      padding: 20px;
+      text-align: center;
+    }
+
+    canvas {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+      margin-top: 30px;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    h2 {
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>📈 Employee Submission Trend (Last 7 Days)</h2>
+  <canvas id="submissionChart" height="150"></canvas>
+
+  <script src="firebase-config.js"></script>
+  <script>
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const today = new Date();
+    const last7Days = [...Array(7)].map((_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - (6 - i));
+      return d.toISOString().split('T')[0]; // 'YYYY-MM-DD'
+    });
+
+    const summaryCounts = {};
+
+    Promise.all(
+      last7Days.map(date =>
+        db.collection("tasks").get().then(snapshot => {
+          let count = 0;
+          const promises = [];
+
+          snapshot.forEach(doc => {
+            const uid = doc.id;
+            const summaryDoc = db.collection("tasks").doc(uid).collection(date).doc("summary").get();
+            promises.push(summaryDoc.then(docSnap => {
+              if (docSnap.exists) count++;
+            }));
+          });
+
+          return Promise.all(promises).then(() => {
+            summaryCounts[date] = count;
+          });
+        })
+      )
+    ).then(() => {
+      const ctx = document.getElementById('submissionChart').getContext('2d');
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: last7Days,
+          datasets: [{
+            label: 'Summaries Submitted',
+            data: last7Days.map(d => summaryCounts[d] || 0),
+            fill: false,
+            borderColor: '#007bff',
+            tension: 0.2
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              stepSize: 1
+            }
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
