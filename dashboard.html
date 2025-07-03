@@ -1,76 +1,59 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Employee Dashboard</title>
+<script src="firebase-config.js"></script>
+<script>
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
 
-  <!-- Firebase libraries -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-</head>
-<body>
-  <h2>Welcome, Employee</h2>
+  const taskDisplay = document.getElementById("taskDisplay");
+  const today = new Date().toISOString().split("T")[0];
 
-  <h3>📌 Today's Task:</h3>
-  <div id="taskDisplay">Loading...</div>
-
-  <h3>📤 Upload Work Summary:</h3>
-  <textarea id="summary" rows="5" cols="50" placeholder="Write what you completed today..."></textarea><br />
-  <button onclick="submitWork()">Submit</button>
-
-  <script src="firebase-config.js"></script>
-  <script>
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.firestore();
-
-    const taskDisplay = document.getElementById("taskDisplay");
-    const today = new Date().toISOString().split("T")[0];
-
-    auth.onAuthStateChanged(user => {
-      if (user) {
-        const uid = user.uid;
-
-        // 🔍 Get Task
-        db.collection("tasks").doc(uid).collection(today).doc("task").get()
-          .then(doc => {
-            if (doc.exists) {
-              taskDisplay.innerText = doc.data().task;
-            } else {
-              taskDisplay.innerText = "❌ No task assigned yet.";
-            }
-          })
-          .catch(err => {
-            console.error("Error reading task:", err);
-            taskDisplay.innerText = "⚠️ Error loading task.";
-          });
-      } else {
-        window.location.href = "login.html"; // force login
-      }
-    });
-
-    function submitWork() {
-      const summary = document.getElementById("summary").value.trim();
-      if (!summary) {
-        alert("Please write your summary.");
-        return;
-      }
-
-      const user = auth.currentUser;
-      if (!user) return;
-
+  auth.onAuthStateChanged(user => {
+    if (user) {
       const uid = user.uid;
+      console.log("Logged in UID:", uid);
+      console.log("Today:", today);
 
-      db.collection("tasks").doc(uid).collection(today).doc("summary").set({
-        work: summary
-      }).then(() => {
-        alert("✅ Work submitted!");
-        document.getElementById("summary").value = "";
-      }).catch(err => {
-        console.error("Error saving summary:", err);
-        alert("❌ Failed to submit.");
-      });
+      // 🔍 Fetch Task from Firestore
+      db.collection("tasks").doc(uid).collection(today).doc("task").get()
+        .then(doc => {
+          if (doc.exists) {
+            console.log("📌 Task found:", doc.data());
+            taskDisplay.innerText = doc.data().task;
+          } else {
+            console.warn("❌ No task found for today.");
+            taskDisplay.innerText = "❌ No task assigned today.";
+          }
+        })
+        .catch(err => {
+          console.error("⚠️ Error getting task:", err);
+          taskDisplay.innerText = "⚠️ Error loading task.";
+        });
+
+    } else {
+      window.location.href = "login.html";
     }
-  </script>
-</body>
-</html>
+  });
+
+  function submitWork() {
+    const summary = document.getElementById("summary").value.trim();
+    if (!summary) {
+      alert("Please enter your summary.");
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const uid = user.uid;
+
+    db.collection("tasks").doc(uid).collection(today).doc("summary").set({
+      work: summary
+    }).then(() => {
+      alert("✅ Work submitted!");
+      document.getElementById("summary").value = "";
+    }).catch(err => {
+      console.error("❌ Failed to save summary:", err);
+      alert("❌ Error submitting summary.");
+    });
+  }
+</script>
