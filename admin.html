@@ -2,6 +2,8 @@
 <html>
 <head>
   <title>Admin – Assign Task</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
   <h2>Assign Task to Employee</h2>
@@ -17,47 +19,41 @@
 
   <button onclick="assignTask()">Assign Task</button>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-    import { getAuth, getUserByEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { firebaseConfig } from "./firebase-config.js";
+  <script src="firebase-config.js"></script>
+  <script>
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    // Set today's date as default
+    document.getElementById("taskDate").value = new Date().toISOString().split("T")[0];
 
-    async function getUIDByEmail(email) {
-      // Firebase Admin SDK is needed on server to get UID by email
-      alert("⚠️ You cannot get UID by email on client-side. Instead, paste the UID manually for now.");
-    }
-
-    window.assignTask = async function () {
+    function assignTask() {
       const email = document.getElementById("empEmail").value.trim();
       const task = document.getElementById("taskDesc").value.trim();
-      const date = document.getElementById("taskDate").value || new Date().toISOString().split("T")[0];
+      const date = document.getElementById("taskDate").value;
 
-      if (!email || !task) {
+      if (!email || !task || !date) {
         alert("Please fill all fields.");
         return;
       }
 
       const uid = prompt("Paste the UID of the employee for email: " + email);
-
       if (!uid) {
         alert("Task not assigned. UID is required.");
         return;
       }
 
-      await setDoc(doc(db, "tasks", uid, date), {
-        task
+      db.collection("tasks").doc(uid).collection(date).doc("task").set({
+        task: task
+      }).then(() => {
+        alert("✅ Task assigned successfully.");
+        document.getElementById("taskDesc").value = "";
+      }).catch((error) => {
+        console.error("Error writing task: ", error);
+        alert("❌ Failed to assign task.");
       });
-
-      alert("✅ Task assigned successfully.");
-      document.getElementById("taskDesc").value = "";
-    };
-
-    // Set today's date as default
-    document.getElementById("taskDate").value = new Date().toISOString().split("T")[0];
+    }
   </script>
 </body>
 </html>
