@@ -1,26 +1,103 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Employee Dashboard</title>
+  <meta charset="UTF-8">
+  <title>Employee Dashboard | Shree Ram Packers</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- ✅ Firebase SDKs -->
+  <!-- Fonts & Styling -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #f1f4f9;
+      margin: 0;
+      padding: 0;
+    }
+
+    .dashboard {
+      max-width: 600px;
+      background: white;
+      margin: 60px auto;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    h2, h3 {
+      margin-top: 0;
+    }
+
+    .info {
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    .task-box {
+      background-color: #e9f5ff;
+      border: 1px solid #bce0fd;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 25px;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+      resize: vertical;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background-color: #1e7e34;
+    }
+
+    .logout {
+      margin-top: 30px;
+      background-color: #dc3545;
+    }
+
+    .logout:hover {
+      background-color: #c82333;
+    }
+  </style>
+
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-  <h2>Welcome, Employee</h2>
 
-  <h3>📌 Today's Task:</h3>
-  <div id="taskDisplay">Loading...</div>
+  <div class="dashboard">
+    <h2>Welcome 👋</h2>
+    <div class="info" id="userEmail">Logged in as: </div>
 
-  <h3>📤 Upload Work Summary:</h3>
-  <textarea id="summary" rows="5" cols="50" placeholder="Write what you completed today..."></textarea><br />
-  <button onclick="submitWork()">Submit</button>
+    <h3>📌 Today's Task:</h3>
+    <div id="taskDisplay" class="task-box">Loading...</div>
 
-  <!-- ✅ Your Firebase config -->
+    <h3>📤 Upload Work Summary:</h3>
+    <textarea id="summary" rows="5" placeholder="Write what you completed today..."></textarea>
+    <button onclick="submitWork()">Submit Summary</button>
+
+    <button class="logout" onclick="logout()">Logout</button>
+  </div>
+
   <script src="firebase-config.js"></script>
-
   <script>
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
@@ -31,9 +108,8 @@
 
     auth.onAuthStateChanged(user => {
       if (user) {
+        document.getElementById("userEmail").innerText = "Logged in as: " + user.email;
         const uid = user.uid;
-        console.log("Logged in UID:", uid);
-        console.log("Today:", today);
 
         db.collection("tasks").doc(uid).collection(today).doc("task").get()
           .then(doc => {
@@ -44,7 +120,7 @@
             }
           })
           .catch(err => {
-            console.error("⚠️ Error getting task:", err);
+            console.error("Error getting task:", err);
             taskDisplay.innerText = "⚠️ Error loading task.";
           });
 
@@ -56,7 +132,7 @@
     function submitWork() {
       const summary = document.getElementById("summary").value.trim();
       if (!summary) {
-        alert("Please enter your summary.");
+        alert("⚠️ Please enter your summary.");
         return;
       }
 
@@ -68,11 +144,17 @@
       db.collection("tasks").doc(uid).collection(today).doc("summary").set({
         work: summary
       }).then(() => {
-        alert("✅ Work submitted!");
+        alert("✅ Summary submitted!");
         document.getElementById("summary").value = "";
       }).catch(err => {
-        console.error("❌ Failed to save summary:", err);
-        alert("❌ Error submitting summary.");
+        console.error("Error saving summary:", err);
+        alert("❌ Failed to submit.");
+      });
+    }
+
+    function logout() {
+      auth.signOut().then(() => {
+        window.location.href = "login.html";
       });
     }
   </script>
