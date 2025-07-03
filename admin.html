@@ -2,6 +2,8 @@
 <html>
 <head>
   <title>Admin – Assign Task</title>
+
+  <!-- Firebase libraries -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 </head>
@@ -21,11 +23,11 @@
 
   <script src="firebase-config.js"></script>
   <script>
-    // Initialize Firebase
+    // ✅ Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // Set today's date as default
+    // Set today as default date
     document.getElementById("taskDate").value = new Date().toISOString().split("T")[0];
 
     function assignTask() {
@@ -38,21 +40,22 @@
         return;
       }
 
-      const uid = prompt("Paste the UID of the employee for email: " + email);
+      const uid = prompt("Paste UID of the employee for " + email);
       if (!uid) {
-        alert("Task not assigned. UID is required.");
+        alert("Task not assigned. UID required.");
         return;
       }
 
-      db.collection("tasks").doc(uid).collection(date).doc("task").set({
-        task: task
-      }).then(() => {
-        alert("✅ Task assigned successfully.");
-        document.getElementById("taskDesc").value = "";
-      }).catch((error) => {
-        console.error("Error writing task: ", error);
-        alert("❌ Failed to assign task.");
-      });
+      // Save to Firestore
+      db.collection("tasks").doc(uid).collection(date).doc("task").set({ task: task })
+        .then(() => {
+          alert("✅ Task assigned!");
+          document.getElementById("taskDesc").value = "";
+        })
+        .catch(error => {
+          console.error("❌ Error assigning task:", error);
+          alert("Failed to assign task.");
+        });
     }
   </script>
 </body>
