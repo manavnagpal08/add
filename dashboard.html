@@ -130,27 +130,52 @@
     });
 
     function submitWork() {
-      const summary = document.getElementById("summary").value.trim();
-      if (!summary) {
-        alert("⚠️ Please enter your summary.");
-        return;
-      }
+  const summary = document.getElementById("summary").value.trim();
+  if (!summary) {
+    alert("Please enter your summary.");
+    return;
+  }
 
-      const user = auth.currentUser;
-      if (!user) return;
+  const user = firebase.auth().currentUser;
+  if (!user) return;
 
-      const uid = user.uid;
+  const uid = user.uid;
+  const today = new Date().toISOString().split("T")[0];
 
-      db.collection("tasks").doc(uid).collection(today).doc("summary").set({
-        work: summary
-      }).then(() => {
-        alert("✅ Summary submitted!");
-        document.getElementById("summary").value = "";
-      }).catch(err => {
-        console.error("Error saving summary:", err);
-        alert("❌ Failed to submit.");
-      });
+  // ✅ Word Count
+  const wordCount = summary.split(/\s+/).filter(w => w.length > 2).length;
+
+  // ✅ Simple AI Tags (based on keyword matching)
+  const keywords = {
+    Packing: ["pack", "bag", "sealed"],
+    Delivery: ["delivered", "shipped", "dispatch"],
+    QC: ["check", "verified", "quality", "tested"],
+    Loading: ["load", "loaded", "truck", "transport"],
+  };
+
+  const tags = [];
+  const lower = summary.toLowerCase();
+
+  for (let tag in keywords) {
+    if (keywords[tag].some(word => lower.includes(word))) {
+      tags.push(tag);
     }
+  }
+
+  // ✅ Store into Firestore
+  db.collection("tasks").doc(uid).collection(today).doc("summary").set({
+    work: summary,
+    wordCount,
+    tags
+  }).then(() => {
+    alert("✅ Summary submitted with AI analysis!");
+    document.getElementById("summary").value = "";
+  }).catch(err => {
+    console.error("❌ Failed to save summary:", err);
+    alert("❌ Error submitting summary.");
+  });
+}
+
 
     function logout() {
       auth.signOut().then(() => {
