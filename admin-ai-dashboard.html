@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Dashboard | Shree Ram Packers</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <!-- Firebase + Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #f4f7fa;
+      margin: 0;
+      padding: 30px;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 30px;
+      font-weight: 600;
+    }
+
+    canvas {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      padding: 20px;
+      max-width: 800px;
+      margin: auto;
+    }
+
+    .note {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 14px;
+      color: gray;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>🏆 Top 5 Employees by Word Count (Last 14 Days)</h2>
+  <canvas id="barChart" height="120"></canvas>
+  <div class="note">Based on submitted summaries</div>
+
+  <script src="firebase-config.js"></script>
+  <script>
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const today = new Date();
+    const pastDays = [...Array(14)].map((_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      return d.toISOString().split('T')[0];
+    });
+
+    const employeeWordCounts = {};
+
+    async function generateBarChart() {
+      const usersSnap = await db.collection("tasks").get();
+
+      const allPromises = [];
+
+      usersSnap.forEach(userDoc => {
+        const uid = userDoc.id;
+
+        pastDays.forEach(date => {
+          const summaryRef = db.collection("tasks").doc(uid).collection(date).doc("summary");
+
+          allPromises.push(summaryRef.get().then(docSnap => {
+            if (docSnap.exists) {
+              const wordCount = docSnap.data().wordCount || 0;
+              if (!employeeWordCounts[uid]) employeeWordCounts[uid] = 0;
+              employeeWordCounts[uid] += wordCount;
+            }
+          }));
+        });
+      });
+
+      await Promise.all(allPromises);
+
+      // Get names from users collection
+      const userData = [];
+      const userInfoSnap = await db.collection("users").get();
+      userInfoSnap.forEach(doc => {
+        const uid = doc.id;
+        const name = doc.data().name || uid;
+        const count = employeeWordCounts[uid] || 0;
+        if (count > 0) userData.push({ name, count });
+      });
+
+      const topEmployees = userData
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+      const ctx = document.getElementById("barChart").getContext("2d");
+
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: topEmployees.map(e => e.name),
+          datasets: [{
+            label: 'Total Words Written',
+            data: topEmployees.map(e => e.count),
+            backgroundColor: '#007bff',
+            borderRadius: 10
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              stepSize: 100
+            }
+          }
+        }
+      });
+    }
+
+    generateBarChart();
+  </script>
+</body>
+</html>
