@@ -46,22 +46,16 @@
 </head>
 <body>
 
-  <h2>🏆 Top 5 Employees by Word Count (Last 14 Days)</h2>
+  <h2>📊 Top 5 Employees by Completion % (Last 14 Days)</h2>
   <canvas id="barChart" height="150"></canvas>
 
-  <h2>🔍 Filter Work by Tag & Date</h2>
+  <h2>🔍 Filter by Task & Date</h2>
   <div style="text-align: center; margin: 20px 0;">
-    <select id="tagSelect">
-      <option value="">-- Select Tag --</option>
-      <option value="Packing">Packing</option>
-      <option value="Delivery">Delivery</option>
-      <option value="QC">QC</option>
-      <option value="Loading">Loading</option>
-    </select>
-    <input type="date" id="tagDate" />
-    <button onclick="filterByTag()">View</button>
+    <input type="text" id="taskName" placeholder="Enter task (e.g. Packaging)">
+    <input type="date" id="taskDate">
+    <button onclick="filterByTask()">View</button>
   </div>
-  <div id="tagResults"></div>
+  <div id="taskResults"></div>
 
   <h2>🗓️ Monthly Employee Report</h2>
   <div style="text-align: center; margin: 20px 0;">
@@ -70,7 +64,7 @@
   </div>
   <div id="monthlyReport"></div>
 
-  <h2>🥇 AI Employee Leaderboard</h2>
+  <h2>🥇 AI Efficiency Leaderboard</h2>
   <div style="text-align: center; margin: 20px 0;">
     <input type="month" id="leaderMonth">
     <button onclick="generateLeaderboard()">Show Leaderboard</button>
@@ -82,99 +76,90 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    const today = new Date();
-    const pastDays = [...Array(14)].map((_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      return d.toISOString().split('T')[0];
-    });
-
-    const employeeWordCounts = {};
-
     async function generateBarChart() {
+      const employeeData = {};
       const usersSnap = await db.collection("tasks").get();
-      const allPromises = [];
+      const today = new Date();
+      const dates = [...Array(14)].map((_, i) => {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        return d.toISOString().split('T')[0];
+      });
 
-      usersSnap.forEach(userDoc => {
-        const uid = userDoc.id;
-
-        pastDays.forEach(date => {
-          const summaryRef = db.collection("tasks").doc(uid).collection(date).doc("summary");
-          allPromises.push(summaryRef.get().then(docSnap => {
-            if (docSnap.exists) {
-              const wordCount = docSnap.data().wordCount || 0;
-              employeeWordCounts[uid] = (employeeWordCounts[uid] || 0) + wordCount;
+      const promises = [];
+      usersSnap.forEach(doc => {
+        const uid = doc.id;
+        dates.forEach(date => {
+          const ref = db.collection("tasks").doc(uid).collection(date).doc("summary");
+          promises.push(ref.get().then(snapshot => {
+            if (snapshot.exists) {
+              const data = snapshot.data();
+              const completed = data.completed || 0;
+              const assigned = data.assigned || 0;
+              if (!employeeData[uid]) employeeData[uid] = { assigned: 0, completed: 0 };
+              employeeData[uid].assigned += assigned;
+              employeeData[uid].completed += completed;
             }
           }));
         });
       });
 
-      await Promise.all(allPromises);
+      await Promise.all(promises);
 
-      const userData = [];
-      const userInfoSnap = await db.collection("users").get();
-      userInfoSnap.forEach(doc => {
+      const userInfo = await db.collection("users").get();
+      const chartData = [];
+      userInfo.forEach(doc => {
         const uid = doc.id;
         const name = doc.data().name || uid;
-        const count = employeeWordCounts[uid] || 0;
-        if (count > 0) userData.push({ name, count });
+        const stats = employeeData[uid];
+        if (stats && stats.assigned > 0) {
+          const percent = Math.round((stats.completed / stats.assigned) * 100);
+          chartData.push({ name, percent });
+        }
       });
 
-      const topEmployees = userData.sort((a, b) => b.count - a.count).slice(0, 5);
-
+      const top5 = chartData.sort((a, b) => b.percent - a.percent).slice(0, 5);
       new Chart(document.getElementById("barChart").getContext("2d"), {
         type: 'bar',
         data: {
-          labels: topEmployees.map(e => e.name),
+          labels: top5.map(x => x.name),
           datasets: [{
-            label: 'Total Words Written',
-            data: topEmployees.map(e => e.count),
-            backgroundColor: '#007bff',
-            borderRadius: 10
+            label: 'Completion %',
+            data: top5.map(x => x.percent),
+            backgroundColor: '#28a745',
+            borderRadius: 8
           }]
         },
-        options: {
-          responsive: true,
-          scales: { y: { beginAtZero: true } }
-        }
+        options: { scales: { y: { beginAtZero: true, max: 100 } } }
       });
     }
 
     generateBarChart();
 
-    function filterByTag() {
-      const tag = document.getElementById('tagSelect').value;
-      const date = document.getElementById('tagDate').value;
-      const output = document.getElementById('tagResults');
-      output.innerHTML = "";
-
-      if (!tag || !date) {
-        output.innerHTML = "<p>Please select both tag and date.</p>";
-        return;
-      }
-
-      output.innerHTML = "<p>Loading...</p>";
+    function filterByTask() {
+      const task = document.getElementById("taskName").value;
+      const date = document.getElementById("taskDate").value;
+      const output = document.getElementById("taskResults");
+      output.innerHTML = "Loading...";
 
       db.collection("tasks").get().then(snapshot => {
         const promises = [];
         snapshot.forEach(userDoc => {
           const uid = userDoc.id;
-          const summaryRef = db.collection("tasks").doc(uid).collection(date).doc("summary");
-          promises.push(
-            Promise.all([summaryRef.get(), db.collection("users").doc(uid).get()])
-              .then(([summaryDoc, userDoc]) => {
-                if (summaryDoc.exists && summaryDoc.data().tags?.includes(tag)) {
-                  const name = userDoc.exists ? userDoc.data().name : uid;
-                  return `<div><strong>${name}</strong>: ${summaryDoc.data().work}</div>`;
-                }
-                return null;
-              })
-          );
+          const ref = db.collection("tasks").doc(uid).collection(date).doc("summary");
+          promises.push(Promise.all([ref.get(), db.collection("users").doc(uid).get()])
+            .then(([summary, userDoc]) => {
+              if (summary.exists && summary.data().task === task) {
+                const data = summary.data();
+                const name = userDoc.exists ? userDoc.data().name : uid;
+                return `<div><strong>${name}</strong> - Assigned: ${data.assigned}, Completed: ${data.completed}</div>`;
+              }
+              return null;
+            }));
         });
-
         Promise.all(promises).then(results => {
           const filtered = results.filter(Boolean);
-          output.innerHTML = filtered.length ? filtered.join("") : "<p>No results found.</p>";
+          output.innerHTML = filtered.length ? filtered.join('') : "<p>No matching data.</p>";
         });
       });
     }
@@ -183,45 +168,43 @@
       const selectedMonth = document.getElementById("monthSelect").value;
       const container = document.getElementById("monthlyReport");
       container.innerHTML = "";
-      if (!selectedMonth) return container.innerHTML = "<p>Select month.</p>";
+      if (!selectedMonth) return;
 
       const [year, month] = selectedMonth.split("-").map(Number);
-      const daysInMonth = new Date(year, month, 0).getDate();
-      const dates = [...Array(daysInMonth)].map((_, i) => `${year}-${String(month).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`);
+      const days = new Date(year, month, 0).getDate();
+      const dates = [...Array(days)].map((_, i) => `${year}-${String(month).padStart(2, '0')}-${String(i+1).padStart(2, '0')}`);
 
-      const reportData = {};
-
+      const report = {};
       db.collection("tasks").get().then(snapshot => {
         const promises = [];
-
         snapshot.forEach(userDoc => {
           const uid = userDoc.id;
-          reportData[uid] = { totalWords: 0, daysWorked: 0 };
-
+          report[uid] = { assigned: 0, completed: 0 };
           dates.forEach(date => {
             const ref = db.collection("tasks").doc(uid).collection(date).doc("summary");
             promises.push(ref.get().then(doc => {
               if (doc.exists) {
-                reportData[uid].totalWords += doc.data().wordCount || 0;
-                reportData[uid].daysWorked++;
+                const data = doc.data();
+                report[uid].assigned += data.assigned || 0;
+                report[uid].completed += data.completed || 0;
               }
             }));
           });
         });
-
         Promise.all(promises).then(() => {
-          db.collection("users").get().then(userSnapshot => {
-            let table = `<table><tr><th>Employee</th><th>Days Worked</th><th>Word Count</th></tr>`;
-            userSnapshot.forEach(doc => {
+          db.collection("users").get().then(userSnap => {
+            let html = `<table><tr><th>Employee</th><th>Assigned</th><th>Completed</th><th>% Done</th></tr>`;
+            userSnap.forEach(doc => {
               const uid = doc.id;
               const name = doc.data().name || uid;
-              const stats = reportData[uid];
-              if (stats.daysWorked > 0) {
-                table += `<tr><td>${name}</td><td>${stats.daysWorked}</td><td>${stats.totalWords}</td></tr>`;
+              const r = report[uid];
+              if (r.assigned > 0) {
+                const percent = Math.round((r.completed / r.assigned) * 100);
+                html += `<tr><td>${name}</td><td>${r.assigned}</td><td>${r.completed}</td><td>${percent}%</td></tr>`;
               }
             });
-            table += `</table>`;
-            container.innerHTML = table;
+            html += `</table>`;
+            container.innerHTML = html;
           });
         });
       });
@@ -231,51 +214,45 @@
       const selectedMonth = document.getElementById("leaderMonth").value;
       const output = document.getElementById("leaderboardTable");
       output.innerHTML = "";
-      if (!selectedMonth) return output.innerHTML = "<p>Select month.</p>";
+      if (!selectedMonth) return;
 
       const [year, month] = selectedMonth.split("-").map(Number);
-      const daysInMonth = new Date(year, month, 0).getDate();
-      const dates = [...Array(daysInMonth)].map((_, i) => `${year}-${String(month).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`);
+      const days = new Date(year, month, 0).getDate();
+      const dates = [...Array(days)].map((_, i) => `${year}-${String(month).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`);
 
-      const scoreData = {};
-
+      const dataMap = {};
       db.collection("tasks").get().then(snapshot => {
         const promises = [];
-
         snapshot.forEach(userDoc => {
           const uid = userDoc.id;
-          scoreData[uid] = { totalWords: 0, daysWorked: 0 };
-
+          dataMap[uid] = { assigned: 0, completed: 0 };
           dates.forEach(date => {
             const ref = db.collection("tasks").doc(uid).collection(date).doc("summary");
             promises.push(ref.get().then(doc => {
               if (doc.exists) {
-                scoreData[uid].totalWords += doc.data().wordCount || 0;
-                scoreData[uid].daysWorked++;
+                const data = doc.data();
+                dataMap[uid].assigned += data.assigned || 0;
+                dataMap[uid].completed += data.completed || 0;
               }
             }));
           });
         });
-
         Promise.all(promises).then(() => {
           db.collection("users").get().then(userSnap => {
-            const leaderboard = [];
-
+            const board = [];
             userSnap.forEach(doc => {
               const uid = doc.id;
               const name = doc.data().name || uid;
-              const d = scoreData[uid];
-              if (d.daysWorked > 0) {
-                const score = d.totalWords * 2 + d.daysWorked * 10;
-                leaderboard.push({ name, ...d, score });
+              const d = dataMap[uid];
+              if (d.assigned > 0) {
+                const percent = Math.round((d.completed / d.assigned) * 100);
+                board.push({ name, percent, ...d });
               }
             });
-
-            leaderboard.sort((a, b) => b.score - a.score);
-
-            let html = `<table><tr><th>Rank</th><th>Employee</th><th>Days</th><th>Words</th><th>AI Score</th></tr>`;
-            leaderboard.forEach((emp, i) => {
-              html += `<tr><td>${i+1}</td><td>${emp.name}</td><td>${emp.daysWorked}</td><td>${emp.totalWords}</td><td>${emp.score}</td></tr>`;
+            board.sort((a, b) => b.percent - a.percent);
+            let html = `<table><tr><th>Rank</th><th>Employee</th><th>Assigned</th><th>Completed</th><th>% Done</th></tr>`;
+            board.forEach((emp, i) => {
+              html += `<tr><td>${i+1}</td><td>${emp.name}</td><td>${emp.assigned}</td><td>${emp.completed}</td><td>${emp.percent}%</td></tr>`;
             });
             html += `</table>`;
             output.innerHTML = html;
