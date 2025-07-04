@@ -5,6 +5,7 @@
   <title>Admin Dashboard | Shree Ram Packers</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+  <!-- Firebase + Chart.js -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -49,15 +50,8 @@
 
     auth.onAuthStateChanged(user => {
       if (user) {
-        db.collection("users").doc(user.uid).get().then(doc => {
-          if (!doc.exists || doc.data().role !== "admin") {
-            alert("❌ Unauthorized: Only admins allowed.");
-            window.location.href = "index.html";
-          } else {
-            console.log("✅ Admin verified:", doc.data().name);
-            loadPerformanceChart();
-          }
-        });
+        // Skip role check — or keep if you want
+        loadPerformanceChart();
       } else {
         window.location.href = "index.html";
       }
@@ -68,32 +62,9 @@
         const tasksSnapshot = await db.collection("tasks").get();
         const performanceData = {};
 
-        for (const doc of tasksSnapshot.docs) {
-  const employeeName = doc.id;
-  const dateCollections = await doc.ref.listCollections();
-
-  let totalAssigned = 0;
-  let totalCompleted = 0;
-
-  for (let i = 0; i < dateCollections.length; i++) {
-    const dateCol = dateCollections[i];
-    const summaryDoc = await dateCol.doc("summary").get();
-
-    if (summaryDoc.exists) {
-      const data = summaryDoc.data();
-      totalAssigned += data.assigned || 0;
-      totalCompleted += data.completed || 0;
-    }
-  }
-
-  if (totalAssigned > 0) {
-    performanceData[employeeName] = {
-      assigned: totalAssigned,
-      completed: totalCompleted
-    };
-  }
-}
-
+        for (const empDoc of tasksSnapshot.docs) {
+          const employeeName = empDoc.id;
+          const dateCollections = await empDoc.ref.listCollections();
 
           let totalAssigned = 0;
           let totalCompleted = 0;
@@ -107,8 +78,6 @@
             }
           }
 
-          console.log(`📦 ${employeeName} — Assigned: ${totalAssigned}, Completed: ${totalCompleted}`);
-
           if (totalAssigned > 0) {
             performanceData[employeeName] = {
               assigned: totalAssigned,
@@ -116,8 +85,6 @@
             };
           }
         }
-
-        console.log("📊 Final Data:", performanceData);
 
         const labels = Object.keys(performanceData);
         const completedData = labels.map(name => performanceData[name].completed);
@@ -150,6 +117,7 @@
             }
           }
         });
+
       } catch (err) {
         console.error("❌ Error loading chart:", err);
       }
