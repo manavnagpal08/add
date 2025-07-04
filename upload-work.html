@@ -66,6 +66,7 @@
 <body>
   <div class="form-box">
     <h2>Upload Today's Work</h2>
+    <input type="text" id="employeeName" placeholder="Your Full Name" required>
     <input type="number" id="assignedQty" placeholder="Assigned Quantity" required>
     <input type="number" id="completedQty" placeholder="Completed Quantity" required>
     <button id="submitBtn">Submit Work</button>
@@ -80,9 +81,9 @@
     const db = firebase.firestore();
     const auth = firebase.auth();
 
-    function uploadPackagingSummary(uid, assigned, completed, task = "Packaging") {
+    function uploadPackagingSummary(name, assigned, completed, task = "Packaging") {
       const today = new Date().toISOString().split("T")[0];
-      const docRef = db.collection("tasks").doc(uid).collection(today).doc("summary");
+      const docRef = db.collection("tasks").doc(name).collection(today).doc("summary");
 
       return docRef.set({
         assigned: Number(assigned),
@@ -111,15 +112,16 @@
     });
 
     document.getElementById("submitBtn").addEventListener("click", () => {
+      const name = document.getElementById("employeeName").value.trim();
       const assigned = document.getElementById("assignedQty").value;
       const completed = document.getElementById("completedQty").value;
 
-      const user = auth.currentUser;
-      if (user) {
-        uploadPackagingSummary(user.uid, assigned, completed);
-      } else {
-        alert("⚠️ Not logged in. Please log in first.");
+      if (!name) {
+        alert("❗ Please enter your name.");
+        return;
       }
+
+      uploadPackagingSummary(name, assigned, completed);
     });
   </script>
 </body>
