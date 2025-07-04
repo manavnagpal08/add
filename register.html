@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Register User | Shree Ram Packers</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #f4f7fa;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .form-box {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div class="form-box">
+    <h2>Register New User</h2>
+    <input type="text" id="fullName" placeholder="Full Name" required />
+    <input type="email" id="email" placeholder="Email" required />
+    <input type="password" id="password" placeholder="Password" required />
+    <select id="role" required>
+      <option value="" disabled selected>Select Role</option>
+      <option value="employee">Employee</option>
+      <option value="admin">Admin</option>
+    </select>
+    <button onclick="registerUser()">Register</button>
+  </div>
+
+  <script src="firebase-config.js"></script>
+  <script>
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    function registerUser() {
+      const fullName = document.getElementById("fullName").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const role = document.getElementById("role").value;
+
+      if (!fullName || !email || !password || !role) {
+        alert("Please fill in all fields.");
+        return;
+      }
+
+      auth.createUserWithEmailAndPassword(email, password)
+        .then(cred => {
+          return db.collection("users").doc(cred.user.uid).set({
+            name: fullName,
+            role: role
+          });
+        })
+        .then(() => {
+          alert(`✅ ${role.charAt(0).toUpperCase() + role.slice(1)} registered successfully.`);
+          window.location.href = "admin-ai-dashboard.html";
+        })
+        .catch(err => {
+          console.error("Error:", err);
+          alert("❌ " + err.message);
+        });
+    }
+  </script>
+</body>
+</html>
