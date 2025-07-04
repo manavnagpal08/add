@@ -2,262 +2,124 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AI Dashboard | Shree Ram Packers</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Dashboard | Shree Ram Packers</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     body {
       font-family: 'Poppins', sans-serif;
       background-color: #f4f7fa;
       margin: 0;
-      padding: 30px;
+      padding: 20px;
     }
     h2 {
       text-align: center;
       margin-bottom: 30px;
-      font-weight: 600;
     }
-    canvas, table {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-      padding: 20px;
+    #chartContainer {
       max-width: 800px;
-      margin: 30px auto;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      padding: 10px;
-      border: 1px solid #ddd;
-      text-align: center;
-    }
-    th {
-      background: #007bff;
-      color: white;
+    canvas {
+      width: 100% !important;
+      height: auto !important;
     }
   </style>
 </head>
 <body>
-
-  <h2>📊 Top 5 Employees by Completion % (Last 14 Days)</h2>
-  <canvas id="barChart" height="150"></canvas>
-
-  <h2>🔍 Filter by Task & Date</h2>
-  <div style="text-align: center; margin: 20px 0;">
-    <input type="text" id="taskName" placeholder="Enter task (e.g. Packaging)">
-    <input type="date" id="taskDate">
-    <button onclick="filterByTask()">View</button>
+  <h2>📊 Employee Work Performance</h2>
+  <div id="chartContainer">
+    <canvas id="performanceChart"></canvas>
   </div>
-  <div id="taskResults"></div>
-
-  <h2>🗓️ Monthly Employee Report</h2>
-  <div style="text-align: center; margin: 20px 0;">
-    <input type="month" id="monthSelect">
-    <button onclick="generateMonthlyReport()">Generate</button>
-  </div>
-  <div id="monthlyReport"></div>
-
-  <h2>🥇 AI Efficiency Leaderboard</h2>
-  <div style="text-align: center; margin: 20px 0;">
-    <input type="month" id="leaderMonth">
-    <button onclick="generateLeaderboard()">Show Leaderboard</button>
-  </div>
-  <div id="leaderboardTable"></div>
 
   <script src="firebase-config.js"></script>
   <script>
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const auth = firebase.auth();
 
-    async function generateBarChart() {
-      const employeeData = {};
-      const usersSnap = await db.collection("tasks").get();
-      const today = new Date();
-      const dates = [...Array(14)].map((_, i) => {
-        const d = new Date(today);
-        d.setDate(today.getDate() - i);
-        return d.toISOString().split('T')[0];
-      });
-
-      const promises = [];
-      usersSnap.forEach(doc => {
-        const uid = doc.id;
-        dates.forEach(date => {
-          const ref = db.collection("tasks").doc(uid).collection(date).doc("summary");
-          promises.push(ref.get().then(snapshot => {
-            if (snapshot.exists) {
-              const data = snapshot.data();
-              const completed = data.completed || 0;
-              const assigned = data.assigned || 0;
-              if (!employeeData[uid]) employeeData[uid] = { assigned: 0, completed: 0 };
-              employeeData[uid].assigned += assigned;
-              employeeData[uid].completed += completed;
-            }
-          }));
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        db.collection("users").doc(user.uid).get().then(doc => {
+          if (!doc.exists || doc.data().role !== "admin") {
+            alert("❌ Unauthorized: Only admins allowed.");
+            window.location.href = "index.html";
+          } else {
+            loadPerformanceChart();
+          }
         });
-      });
+      } else {
+        window.location.href = "index.html";
+      }
+    });
 
-      await Promise.all(promises);
+    async function loadPerformanceChart() {
+      const tasksSnapshot = await db.collection("tasks").get();
+      const performanceData = {};
 
-      const userInfo = await db.collection("users").get();
-      const chartData = [];
-      userInfo.forEach(doc => {
-        const uid = doc.id;
-        const name = doc.data().name || uid;
-        const stats = employeeData[uid];
-        if (stats && stats.assigned > 0) {
-          const percent = Math.round((stats.completed / stats.assigned) * 100);
-          chartData.push({ name, percent });
+      for (const doc of tasksSnapshot.docs) {
+        const employeeName = doc.id;
+        const dateCollections = await doc.ref.listCollections();
+
+        let totalAssigned = 0;
+        let totalCompleted = 0;
+
+        for (const dateCol of dateCollections) {
+          const summaryDoc = await dateCol.doc("summary").get();
+          if (summaryDoc.exists) {
+            const data = summaryDoc.data();
+            totalAssigned += data.assigned || 0;
+            totalCompleted += data.completed || 0;
+          }
         }
-      });
 
-      const top5 = chartData.sort((a, b) => b.percent - a.percent).slice(0, 5);
-      new Chart(document.getElementById("barChart").getContext("2d"), {
+        if (totalAssigned > 0) {
+          performanceData[employeeName] = {
+            assigned: totalAssigned,
+            completed: totalCompleted
+          };
+        }
+      }
+
+      const labels = Object.keys(performanceData);
+      const completedData = labels.map(name => performanceData[name].completed);
+      const assignedData = labels.map(name => performanceData[name].assigned);
+
+      const ctx = document.getElementById('performanceChart').getContext('2d');
+      new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: top5.map(x => x.name),
-          datasets: [{
-            label: 'Completion %',
-            data: top5.map(x => x.percent),
-            backgroundColor: '#28a745',
-            borderRadius: 8
-          }]
+          labels: labels,
+          datasets: [
+            {
+              label: 'Completed',
+              data: completedData,
+              backgroundColor: 'rgba(40, 167, 69, 0.6)'
+            },
+            {
+              label: 'Assigned',
+              data: assignedData,
+              backgroundColor: 'rgba(0, 123, 255, 0.6)'
+            }
+          ]
         },
-        options: { scales: { y: { beginAtZero: true, max: 100 } } }
-      });
-    }
-
-    generateBarChart();
-
-    function filterByTask() {
-      const task = document.getElementById("taskName").value;
-      const date = document.getElementById("taskDate").value;
-      const output = document.getElementById("taskResults");
-      output.innerHTML = "Loading...";
-
-      db.collection("tasks").get().then(snapshot => {
-        const promises = [];
-        snapshot.forEach(userDoc => {
-          const uid = userDoc.id;
-          const ref = db.collection("tasks").doc(uid).collection(date).doc("summary");
-          promises.push(Promise.all([ref.get(), db.collection("users").doc(uid).get()])
-            .then(([summary, userDoc]) => {
-              if (summary.exists && summary.data().task === task) {
-                const data = summary.data();
-                const name = userDoc.exists ? userDoc.data().name : uid;
-                return `<div><strong>${name}</strong> - Assigned: ${data.assigned}, Completed: ${data.completed}</div>`;
-              }
-              return null;
-            }));
-        });
-        Promise.all(promises).then(results => {
-          const filtered = results.filter(Boolean);
-          output.innerHTML = filtered.length ? filtered.join('') : "<p>No matching data.</p>";
-        });
-      });
-    }
-
-    function generateMonthlyReport() {
-      const selectedMonth = document.getElementById("monthSelect").value;
-      const container = document.getElementById("monthlyReport");
-      container.innerHTML = "";
-      if (!selectedMonth) return;
-
-      const [year, month] = selectedMonth.split("-").map(Number);
-      const days = new Date(year, month, 0).getDate();
-      const dates = [...Array(days)].map((_, i) => `${year}-${String(month).padStart(2, '0')}-${String(i+1).padStart(2, '0')}`);
-
-      const report = {};
-      db.collection("tasks").get().then(snapshot => {
-        const promises = [];
-        snapshot.forEach(userDoc => {
-          const uid = userDoc.id;
-          report[uid] = { assigned: 0, completed: 0 };
-          dates.forEach(date => {
-            const ref = db.collection("tasks").doc(uid).collection(date).doc("summary");
-            promises.push(ref.get().then(doc => {
-              if (doc.exists) {
-                const data = doc.data();
-                report[uid].assigned += data.assigned || 0;
-                report[uid].completed += data.completed || 0;
-              }
-            }));
-          });
-        });
-        Promise.all(promises).then(() => {
-          db.collection("users").get().then(userSnap => {
-            let html = `<table><tr><th>Employee</th><th>Assigned</th><th>Completed</th><th>% Done</th></tr>`;
-            userSnap.forEach(doc => {
-              const uid = doc.id;
-              const name = doc.data().name || uid;
-              const r = report[uid];
-              if (r.assigned > 0) {
-                const percent = Math.round((r.completed / r.assigned) * 100);
-                html += `<tr><td>${name}</td><td>${r.assigned}</td><td>${r.completed}</td><td>${percent}%</td></tr>`;
-              }
-            });
-            html += `</table>`;
-            container.innerHTML = html;
-          });
-        });
-      });
-    }
-
-    function generateLeaderboard() {
-      const selectedMonth = document.getElementById("leaderMonth").value;
-      const output = document.getElementById("leaderboardTable");
-      output.innerHTML = "";
-      if (!selectedMonth) return;
-
-      const [year, month] = selectedMonth.split("-").map(Number);
-      const days = new Date(year, month, 0).getDate();
-      const dates = [...Array(days)].map((_, i) => `${year}-${String(month).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`);
-
-      const dataMap = {};
-      db.collection("tasks").get().then(snapshot => {
-        const promises = [];
-        snapshot.forEach(userDoc => {
-          const uid = userDoc.id;
-          dataMap[uid] = { assigned: 0, completed: 0 };
-          dates.forEach(date => {
-            const ref = db.collection("tasks").doc(uid).collection(date).doc("summary");
-            promises.push(ref.get().then(doc => {
-              if (doc.exists) {
-                const data = doc.data();
-                dataMap[uid].assigned += data.assigned || 0;
-                dataMap[uid].completed += data.completed || 0;
-              }
-            }));
-          });
-        });
-        Promise.all(promises).then(() => {
-          db.collection("users").get().then(userSnap => {
-            const board = [];
-            userSnap.forEach(doc => {
-              const uid = doc.id;
-              const name = doc.data().name || uid;
-              const d = dataMap[uid];
-              if (d.assigned > 0) {
-                const percent = Math.round((d.completed / d.assigned) * 100);
-                board.push({ name, percent, ...d });
-              }
-            });
-            board.sort((a, b) => b.percent - a.percent);
-            let html = `<table><tr><th>Rank</th><th>Employee</th><th>Assigned</th><th>Completed</th><th>% Done</th></tr>`;
-            board.forEach((emp, i) => {
-              html += `<tr><td>${i+1}</td><td>${emp.name}</td><td>${emp.assigned}</td><td>${emp.completed}</td><td>${emp.percent}%</td></tr>`;
-            });
-            html += `</table>`;
-            output.innerHTML = html;
-          });
-        });
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
       });
     }
   </script>
