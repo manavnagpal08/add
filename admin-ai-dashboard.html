@@ -54,6 +54,7 @@
             alert("❌ Unauthorized: Only admins allowed.");
             window.location.href = "index.html";
           } else {
+            console.log("✅ Admin verified:", doc.data().name);
             loadPerformanceChart();
           }
         });
@@ -63,64 +64,72 @@
     });
 
     async function loadPerformanceChart() {
-      const tasksSnapshot = await db.collection("tasks").get();
-      const performanceData = {};
+      try {
+        const tasksSnapshot = await db.collection("tasks").get();
+        const performanceData = {};
 
-      for (const doc of tasksSnapshot.docs) {
-        const employeeName = doc.id;
-        const dateCollections = await doc.ref.listCollections();
+        for (const doc of tasksSnapshot.docs) {
+          const employeeName = doc.id;
+          const dateCollections = await doc.ref.listCollections();
 
-        let totalAssigned = 0;
-        let totalCompleted = 0;
+          let totalAssigned = 0;
+          let totalCompleted = 0;
 
-        for (const dateCol of dateCollections) {
-          const summaryDoc = await dateCol.doc("summary").get();
-          if (summaryDoc.exists) {
-            const data = summaryDoc.data();
-            totalAssigned += data.assigned || 0;
-            totalCompleted += data.completed || 0;
+          for (const dateCol of dateCollections) {
+            const summaryDoc = await dateCol.doc("summary").get();
+            if (summaryDoc.exists) {
+              const data = summaryDoc.data();
+              totalAssigned += data.assigned || 0;
+              totalCompleted += data.completed || 0;
+            }
+          }
+
+          console.log(`📦 ${employeeName} — Assigned: ${totalAssigned}, Completed: ${totalCompleted}`);
+
+          if (totalAssigned > 0) {
+            performanceData[employeeName] = {
+              assigned: totalAssigned,
+              completed: totalCompleted
+            };
           }
         }
 
-        if (totalAssigned > 0) {
-          performanceData[employeeName] = {
-            assigned: totalAssigned,
-            completed: totalCompleted
-          };
-        }
+        console.log("📊 Final Data:", performanceData);
+
+        const labels = Object.keys(performanceData);
+        const completedData = labels.map(name => performanceData[name].completed);
+        const assignedData = labels.map(name => performanceData[name].assigned);
+
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Completed',
+                data: completedData,
+                backgroundColor: 'rgba(40, 167, 69, 0.6)'
+              },
+              {
+                label: 'Assigned',
+                data: assignedData,
+                backgroundColor: 'rgba(0, 123, 255, 0.6)'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                beginAtZero: true
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.error("❌ Error loading chart:", err);
       }
-
-      const labels = Object.keys(performanceData);
-      const completedData = labels.map(name => performanceData[name].completed);
-      const assignedData = labels.map(name => performanceData[name].assigned);
-
-      const ctx = document.getElementById('performanceChart').getContext('2d');
-      new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: 'Completed',
-              data: completedData,
-              backgroundColor: 'rgba(40, 167, 69, 0.6)'
-            },
-            {
-              label: 'Assigned',
-              data: assignedData,
-              backgroundColor: 'rgba(0, 123, 255, 0.6)'
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            y: {
-              beginAtZero: true
-            }
-          }
-        }
-      });
     }
   </script>
 </body>
