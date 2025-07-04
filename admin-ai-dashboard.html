@@ -18,6 +18,182 @@
       margin: 0;
       padding: 20px;
     }
+    h2, h3 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    #chartContainer, #leaderboardContainer, #trendContainer {
+      max-width: 900px;
+      margin: 30px auto;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    canvas {
+      width: 100% !important;
+      height: auto !important;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    th {
+      background-color: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <h2>📊 Employee Work Dashboard</h2>
+
+  <div id="chartContainer">
+    <h3>Total Assigned vs Completed</h3>
+    <canvas id="performanceChart"></canvas>
+  </div>
+
+  <div id="leaderboardContainer">
+    <h3>🏆 Top 5 Employees by Completion Rate</h3>
+    <table id="leaderboardTable">
+      <thead>
+        <tr><th>Rank</th><th>Name</th><th>Completion Rate (%)</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div id="trendContainer">
+    <h3>📈 Daily Work Trend</h3>
+    <canvas id="trendChart"></canvas>
+  </div>
+
+  <script src="firebase-config.js"></script>
+  <script>
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+
+    auth.onAuthStateChanged(user => {
+      if (user) loadDashboard();
+      else window.location.href = "index.html";
+    });
+
+    async function loadDashboard() {
+      const tasksSnapshot = await db.collection("tasks").get();
+      const performanceData = {};
+      const trendData = {};
+
+      for (const empDoc of tasksSnapshot.docs) {
+        const employeeName = empDoc.id;
+        const dateCollections = await empDoc.ref.listCollections();
+
+        let totalAssigned = 0;
+        let totalCompleted = 0;
+
+        for (const dateCol of dateCollections) {
+          const summaryDoc = await dateCol.doc("summary").get();
+          if (summaryDoc.exists) {
+            const { assigned = 0, completed = 0 } = summaryDoc.data();
+            totalAssigned += assigned;
+            totalCompleted += completed;
+
+            if (!trendData[dateCol.id]) trendData[dateCol.id] = {};
+            trendData[dateCol.id][employeeName] = completed;
+          }
+        }
+
+        if (totalAssigned > 0) {
+          performanceData[employeeName] = {
+            assigned: totalAssigned,
+            completed: totalCompleted,
+            rate: ((totalCompleted / totalAssigned) * 100).toFixed(1)
+          };
+        }
+      }
+
+      drawBarChart(performanceData);
+      drawLeaderboard(performanceData);
+      drawTrendChart(trendData);
+    }
+
+    function drawBarChart(data) {
+      const labels = Object.keys(data);
+      const assignedData = labels.map(n => data[n].assigned);
+      const completedData = labels.map(n => data[n].completed);
+
+      const ctx = document.getElementById('performanceChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Assigned', data: assignedData, backgroundColor: 'rgba(0, 123, 255, 0.6)' },
+            { label: 'Completed', data: completedData, backgroundColor: 'rgba(40, 167, 69, 0.6)' }
+          ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      });
+    }
+
+    function drawLeaderboard(data) {
+      const sorted = Object.entries(data).sort((a, b) => b[1].rate - a[1].rate).slice(0, 5);
+      const tbody = document.querySelector('#leaderboardTable tbody');
+      sorted.forEach(([name, stats], index) => {
+        const row = `<tr><td>${index + 1}</td><td>${name}</td><td>${stats.rate}</td></tr>`;
+        tbody.innerHTML += row;
+      });
+    }
+
+    function drawTrendChart(data) {
+      const dates = Object.keys(data).sort();
+      const employeeNames = new Set();
+      dates.forEach(date => Object.keys(data[date]).forEach(n => employeeNames.add(n)));
+
+      const datasets = Array.from(employeeNames).map(name => {
+        return {
+          label: name,
+          data: dates.map(d => data[d][name] || 0),
+          borderWidth: 2,
+          fill: false,
+          tension: 0.2
+        };
+      });
+
+      const ctx = document.getElementById('trendChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: { labels: dates, datasets },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      });
+    }
+  </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Dashboard | Shree Ram Packers</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Firebase + Chart.js -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #f4f7fa;
+      margin: 0;
+      padding: 20px;
+    }
     h2 {
       text-align: center;
       margin-bottom: 30px;
