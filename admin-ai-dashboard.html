@@ -69,8 +69,31 @@
         const performanceData = {};
 
         for (const doc of tasksSnapshot.docs) {
-          const employeeName = doc.id;
-          const dateCollections = await doc.ref.listCollections();
+  const employeeName = doc.id;
+  const dateCollections = await doc.ref.listCollections();
+
+  let totalAssigned = 0;
+  let totalCompleted = 0;
+
+  for (let i = 0; i < dateCollections.length; i++) {
+    const dateCol = dateCollections[i];
+    const summaryDoc = await dateCol.doc("summary").get();
+
+    if (summaryDoc.exists) {
+      const data = summaryDoc.data();
+      totalAssigned += data.assigned || 0;
+      totalCompleted += data.completed || 0;
+    }
+  }
+
+  if (totalAssigned > 0) {
+    performanceData[employeeName] = {
+      assigned: totalAssigned,
+      completed: totalCompleted
+    };
+  }
+}
+
 
           let totalAssigned = 0;
           let totalCompleted = 0;
