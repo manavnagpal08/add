@@ -14,6 +14,7 @@
       font-family: 'Poppins', sans-serif;
       background-color: #f4f7fa;
       display: flex;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
       height: 100vh;
@@ -26,9 +27,9 @@
       box-shadow: 0 4px 20px rgba(0,0,0,0.1);
       max-width: 400px;
       width: 100%;
+      text-align: center;
     }
     h2 {
-      text-align: center;
       margin-bottom: 20px;
     }
     input, button {
@@ -48,6 +49,18 @@
     button:hover {
       background: #218838;
     }
+    .nav-link {
+      margin-top: 20px;
+      text-align: center;
+    }
+    .nav-link a {
+      color: #007bff;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .nav-link a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -56,6 +69,9 @@
     <input type="number" id="assignedQty" placeholder="Assigned Quantity" required>
     <input type="number" id="completedQty" placeholder="Completed Quantity" required>
     <button id="submitBtn">Submit Work</button>
+    <div class="nav-link">
+      <a href="admin-ai-dashboard.html">Go to Admin Dashboard →</a>
+    </div>
   </div>
 
   <script src="firebase-config.js"></script>
@@ -80,17 +96,30 @@
       });
     }
 
+    // Role-based access control
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        db.collection("users").doc(user.uid).get().then(doc => {
+          if (!doc.exists || doc.data().role !== "employee") {
+            alert("❌ Unauthorized: Only employees allowed.");
+            window.location.href = "index.html";
+          }
+        });
+      } else {
+        window.location.href = "index.html";
+      }
+    });
+
     document.getElementById("submitBtn").addEventListener("click", () => {
       const assigned = document.getElementById("assignedQty").value;
       const completed = document.getElementById("completedQty").value;
 
-      auth.onAuthStateChanged(user => {
-        if (user) {
-          uploadPackagingSummary(user.uid, assigned, completed);
-        } else {
-          alert("⚠️ Not logged in. Please log in first.");
-        }
-      });
+      const user = auth.currentUser;
+      if (user) {
+        uploadPackagingSummary(user.uid, assigned, completed);
+      } else {
+        alert("⚠️ Not logged in. Please log in first.");
+      }
     });
   </script>
 </body>
